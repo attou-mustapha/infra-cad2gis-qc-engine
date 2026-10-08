@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  postgis:
+    image: postgis/postgis:16-3.4
+    container_name: cad2gis_postgis
+    environment:
+      POSTGRES_DB: cad2gis_db
+      POSTGRES_USER: gisadmin
+      POSTGRES_PASSWORD: gispassword
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gisadmin -d cad2gis_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  qc-engine:
+    build: .
+    container_name: cad2gis_runner
+    depends_on:
+      postgis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://gisadmin:gispassword@postgis:5432/cad2gis_db
+    volumes:
+      - ./data:/app/data
+      - ./reports:/app/reports
+    command: ["python", "-m", "cad2gis_qc.cli", "--help"]
+
+volumes:
+  postgis_data:
